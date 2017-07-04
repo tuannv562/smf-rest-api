@@ -35,6 +35,13 @@ LOG_SETTING = {
 
 class HttpCode(Enum):
     OK = 200
-    Created = 201
-    Accepted = 202
-    InternalServerError = 500
+    CREATED = 201
+    ACCEPTED = 202
+    INTERNAL_SERVER_ERROR = 500
+
+
+class HttpMethod(Enum):
+    GET = 'GET'
+    POST = 'POST'
+    PUT = 'PUT'
+    DELETE = 'DELETE'
