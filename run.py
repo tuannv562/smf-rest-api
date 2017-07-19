@@ -4,7 +4,7 @@ from server import Server
 from storage import Storage
 
 DEFAULT_SMF_URL = 'localhost'
-DEFAULT_SMF_PORT = 50433
+DEFAULT_SMF_PORT = 8088
 DEFAULT_SMF_USERNAME = 'admin'
 DEFAULT_SMF_PASSWORD = 'Smf_admin123!@'
 ATTRIBUTE_TYPE_LDISK = 'LDISK'
@@ -70,7 +70,13 @@ def main():
     ip, attribute_type, lower_id, upper_id = get_args(args)
     server = Server(args.host, args.port, args.user, args.password)
     storage = Storage(server, ip)
-    storage.remove(attribute_type, lower_id, upper_id)
+
+    cache_ids = list(storage._get_all_cache_id())
+    print(cache_ids)
+    # print(storage._set_wbc_for_ldisks(1, True))
+    # cache_ids = list(storage._get_all_ldisk_on_wbc())
+    # print(cache_ids)
+    #storage.remove(attribute_type, lower_id, upper_id)
 
 
 if __name__ == '__main__':
