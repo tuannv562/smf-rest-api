@@ -2,6 +2,7 @@ import argparse
 import re
 from server import Server
 from storage import Storage
+from cache import Cache
 
 DEFAULT_SMF_URL = 'localhost'
 DEFAULT_SMF_PORT = 8088
@@ -36,47 +37,41 @@ def setup_command():
     return parse.parse_args()
 
 
-def get_args(args):
+def get_range_id(args):
     id_range = None
-    attribute_type = None
-    if args.ldisk:
-        id_range = args.ldisk
-        attribute_type = ATTRIBUTE_TYPE_LDISK
+    if args.raid:
+        id_range = args.raid
     elif args.pool:
         id_range = args.pool
-        attribute_type = ATTRIBUTE_TYPE_POOL
-    elif args.raid:
-        id_range = args.raid
-        attribute_type = ATTRIBUTE_TYPE_RAID
-    else:
+    elif args.cache:
         id_range = args.cache
-        attribute_type = ATTRIBUTE_TYPE_CACHE
-    ip = str(args.ip)
-    p = re.compile(REGEX_IPV4)
-    if not p.match(ip):
-        raise ValueError('Invalid storage IP')
-    id_list = str(id_range).split('x')
-    if len(id_list) != 2:
-        raise ValueError('Invalid range number')
-    lower_bound = int(id_list[0])
-    upper_bound = int(id_list[1])
-    if lower_bound < 0 or upper_bound < 0 or lower_bound > upper_bound:
-        raise ValueError('Invalid range number')
-    return (ip, attribute_type, lower_bound, upper_bound)
+    else:
+        id_range = args.ldisk
+    ids = str(id_range).split(':')
+    if len(ids) != 2:
+        raise ValueError('Invalid range of id')
+    try:
+        lower = int(ids[0])
+        upper = int(ids[1])
+    except:
+        raise ValueError('Invalid range of id')
+    return (lower, upper)
 
 
 def main():
     args = setup_command()
-    ip, attribute_type, lower_id, upper_id = get_args(args)
+    lower, upper = get_range_id(args)
     server = Server(args.host, args.port, args.user, args.password)
-    storage = Storage(server, ip)
-
-    cache_ids = list(storage._get_all_cache_id())
-    print(cache_ids)
-    # print(storage._set_wbc_for_ldisks(1, True))
-    # cache_ids = list(storage._get_all_ldisk_on_wbc())
-    # print(cache_ids)
-    #storage.remove(attribute_type, lower_id, upper_id)
+    storage_attribute = None
+    if args.raid:
+        pass
+    elif args.pool:
+        pass
+    elif args.cache:
+        storage_attribute = Cache(server, args.ip, lower, upper)
+    else:
+        pass
+    storage_attribute.remove()
 
 
 if __name__ == '__main__':
