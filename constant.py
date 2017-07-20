@@ -13,6 +13,7 @@ URI_GET_ALL_LDISK_IN_POOL = '/smf_api/pools/{}/?accesspath={}'
 URI_MOD_LDISK = '/smf_api/volumes/{}'
 URI_MOD_WBC = '/smf_api/writebackcache'
 URI_MOD_UNASSIGN_CACHE = '/smf_api/cachepartition/volumes'
+URI_DEL_CACHE = '/smf_api/cachepartition/?accesspath={}&inelements={{{}}}'
 
 SMF_KEY_VOLUMES = 'volumes'
 SMF_KEY_TOSHIBA_WBC = 'toshibaWBC'
@@ -28,7 +29,7 @@ SMF_KEY_WRITE_BACK_CACHE_STATUS = 'writeBackCacheStatus'
 SMF_KEY_VOLUME_ID = 'volumeId'
 SMF_KEY_VOLUME_IDS = 'volumeIds'
 SMF_KEY_TOSHIBA_CACHE_TYPE = 'toshibaCacheType'
-SMF_KEY_CACHE_TYPE='cacheType'
+SMF_KEY_CACHE_TYPE = 'cacheType'
 
 
 MSG_CREATING_LDISK = ' Processing the volume definition'

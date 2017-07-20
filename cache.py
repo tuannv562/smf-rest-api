@@ -19,12 +19,32 @@ class Cache(StorageAttribute):
             self.__set_wbc_for_ldisks(ldisk, False)
         caches = []
         for cache in caches_info:
-            caches.append(cache[0])
-            if len(cache[2]) != 0:
-                self.__unassign_cache_of_ldisk(cache[1], cache[2])
+            if cache[0] < self.lower:
+                continue
+            elif cache[0] > self.upper:
+                break
+            else:
+                caches.append(cache[0])
+                if len(cache[2]) != 0:
+                    self.__unassign_cache_of_ldisk(cache[1], cache[2])
+        self.__remove_caches(caches)
+        for ldisk in ldisks_on_wbc:
+            self.__set_wbc_for_ldisks(ldisk, True)
 
-    def __remove_caches(self):
-        pass
+    def __remove_caches(self, caches):
+        print('Delete caches: {}'.format(caches))
+        cache_list = ''
+        for cache in caches:
+            cache_list += '{}{}'.format(cache, ',')
+        (status, response_map) = self.server.send_request(
+            HttpMethod.DELETE.value, URI_DEL_CACHE.format(self.storage_ip, cache_list))
+        if status == HttpCode.OK.value:
+            logger.info('remove caches {} successfully'.format(caches))
+            return True
+        else:
+            logger.info('Delete cache partition failed. Error message: {}'.format(
+                response_map[SMF_KEY_ERROR_DESCRIPTION]))
+            return False
 
     def __get_all_cache(self):
         (status, response_map) = self.server.send_request(
@@ -39,7 +59,7 @@ class Cache(StorageAttribute):
                     if cache_map[SMF_KEY_VOLUME_ID] != '---'\
                             and cache_map[SMF_KEY_VOLUME_ID] != 'tiering':
                         volumes = str(cache_map[SMF_KEY_VOLUME_ID]).split(',')
-                    yield (cache_id, cache_map[SMF_KEY_TOSHIBA_CACHE_TYPE], volumes)
+                    yield (cache_id, cache_map[SMF_KEY_TOSHIBA_CACHE_TYPE].lower(), volumes)
                 except:
                     continue
         else:
@@ -71,6 +91,7 @@ class Cache(StorageAttribute):
         (status, response_map) = self.server.send_request(
             HttpMethod.POST.value, URI_MOD_WBC, param_map)
         if status == HttpCode.OK.value:
+            logger.info('set wbc for LDISK {} successfully'.format(ldisk))
             return True
         else:
             logger.info('set wbc for LDISK {} failed. Error message: {}'.format(
@@ -85,6 +106,8 @@ class Cache(StorageAttribute):
         (status, response_map) = self.server.send_request(
             HttpMethod.PUT.value, URI_MOD_UNASSIGN_CACHE, param_map)
         if status == HttpCode.ACCEPTED.value:
+            logger.info(
+                'unassign cache for ldisk {} successfully'.format(ldisks))
             return True
         else:
             logger.info('unassign cache of ldisk failed. Error message: {}'.format(
