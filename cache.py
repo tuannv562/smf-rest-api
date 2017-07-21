@@ -3,6 +3,7 @@ import logging
 import logging.config
 from config import LOG_SETTING, HttpCode, HttpMethod
 from constant import *
+from ldisk import Ldisk
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig(LOG_SETTING)
@@ -34,17 +35,33 @@ class Cache(StorageAttribute):
     def __remove_caches(self, caches):
         print('Delete caches: {}'.format(caches))
         cache_list = ''
+        if len(caches) == 0:
+            print('Success')
+            return True
         for cache in caches:
             cache_list += '{}{}'.format(cache, ',')
         (status, response_map) = self.server.send_request(
             HttpMethod.DELETE.value, URI_DEL_CACHE.format(self.storage_ip, cache_list))
         if status == HttpCode.OK.value:
             logger.info('remove caches {} successfully'.format(caches))
+            print('Success')
             return True
         else:
-            logger.info('Delete cache partition failed. Error message: {}'.format(
-                response_map[SMF_KEY_ERROR_DESCRIPTION]))
-            return False
+            # remove tiering cache while has ldisk enable tiering
+            if response_map[SMF_KEY_ERROR_DESCRIPTION] == MSG_HAS_LDISK_ENABLE_TIER:
+                ldisk = Ldisk(self.server, self.storage_ip,
+                              self.lower, self.upper)
+                ldisks_on_tier = list(ldisk.get_all_ldisk_enable_tier())
+                for i in ldisks_on_tier:
+                    ldisk.set_tiering_of_ldisk(i, False)
+                new_caches = list(self.__get_all_cache())
+                self.__remove_caches(new_caches)
+            else:
+                logger.info('Delete cache partition failed. Error message: {}'.format(
+                    response_map[SMF_KEY_ERROR_DESCRIPTION]))
+                print('delete cache {} failed. Error message: {}'.format(
+                    caches, response_map[SMF_KEY_ERROR_DESCRIPTION]))
+                return False
 
     def __get_all_cache(self):
         (status, response_map) = self.server.send_request(
@@ -56,8 +73,7 @@ class Cache(StorageAttribute):
                     cache_id = int(
                         cache_map[SMF_KEY_TOSHIBA_CACHE_PARTITION_ID])
                     volumes = []
-                    if cache_map[SMF_KEY_VOLUME_ID] != '---'\
-                            and cache_map[SMF_KEY_VOLUME_ID] != 'tiering':
+                    if cache_map[SMF_KEY_VOLUME_ID] != '---' and cache_map[SMF_KEY_VOLUME_ID] != 'tiering':
                         volumes = str(cache_map[SMF_KEY_VOLUME_ID]).split(',')
                     yield (cache_id, cache_map[SMF_KEY_TOSHIBA_CACHE_TYPE].lower(), volumes)
                 except:

@@ -64,7 +64,7 @@ class Server(object):
                 'Send request successfully. Return code: {}'.format(response.status))
             return (response.status, json.loads(content))
         except Exception as ex:
-            logger.info('Send request failed')
+            logger.info('Send request failed. Response: {}'.format(content))
             raise ex
         finally:
             conn.close()

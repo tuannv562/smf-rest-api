@@ -3,6 +3,7 @@ import re
 from server import Server
 from storage import Storage
 from cache import Cache
+from ldisk import Ldisk
 
 DEFAULT_SMF_URL = 'localhost'
 DEFAULT_SMF_PORT = 8088
@@ -70,7 +71,7 @@ def main():
     elif args.cache:
         storage_attribute = Cache(server, args.ip, lower, upper)
     else:
-        pass
+        storage_attribute = Ldisk(server, args.ip, lower, upper)
     storage_attribute.remove()
 
 
