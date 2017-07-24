@@ -1,7 +1,6 @@
 import argparse
 import re
 from server import Server
-from storage import Storage
 from cache import Cache
 from ldisk import Ldisk
 from pool import Pool
@@ -30,12 +29,11 @@ def setup_command():
     parse.add_argument(
         '-i', '--ip', help='IP of storage device', required=True)
     group = parse.add_mutually_exclusive_group(required=True)
-    group.add_argument('-L', '--ldisk', help='LDISK number range. Ex: 1x10')
-    group.add_argument('-P', '--pool', help='pool number range. Ex: 1x10')
     group.add_argument(
-        '-G', '--raid', help='RAID group number range. Ex: 1x10')
-    group.add_argument(
-        '-C', '--cache', help='cache partition number range. Ex: 1x10')
+        '-L', '--ldisk', help='LDISK number range. Ex: 1:10, 1:, :10, :')
+    group.add_argument('-P', '--pool', help='pool number range.')
+    group.add_argument('-G', '--raid', help='RAID group number range.')
+    group.add_argument('-C', '--cache', help='cache partition number range.')
     return parse.parse_args()
 
 
