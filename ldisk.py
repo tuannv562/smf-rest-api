@@ -2,14 +2,20 @@ from storage_attribute import StorageAttribute
 import logging
 import logging.config
 from config import LOG_SETTING, HttpCode, HttpMethod
+from server import Server
 from constant import *
+import time
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig(LOG_SETTING)
 
 
 class Ldisk(StorageAttribute):
-    def __init__(self, server, storage_ip, lower, upper):
+    def __init__(self, server: Server, storage_ip, lower, upper):
+        if not lower:
+            lower = 0
+        if not upper:
+            upper = 2047
         super().__init__(server, storage_ip, lower, upper)
 
     def remove(self):
@@ -23,43 +29,46 @@ class Ldisk(StorageAttribute):
             else:
                 ldisks.append(i)
         print('Delete LDISK {}'.format(ldisks))
+        snapshots = list(self.__get_snapshot_ldisks())
+        print('Snapshot LDISK {}'.format(snapshots))
+        for i in snapshots:
+            if i >= self. lower and i <= self.upper:
+                self.__remove_snapshot(i)
+                ldisks.remove(i)
         for i in ldisks:
             self.__remove_ldisk(i)
 
     def __get_all_ldisk(self):
         (status, content_map) = self.server.send_request(
             HttpMethod.GET.value, URI_GET_ALL_VOLUMES.format(self.storage_ip))
-        if status == HttpCode.OK.value:
-            volumes_map = content_map[SMF_KEY_VOLUMES]
-            for volume_map in volumes_map:
-                yield int(volume_map[SMF_KEY_DEVICE_ID])
-        else:
-            logger.info('get all ldisk ID failed')
-            raise Exception('Can not get all LDISK iD')
+        volumes_map = content_map[SMF_KEY_VOLUMES]
+        for volume_map in volumes_map:
+            yield int(volume_map[SMF_KEY_DEVICE_ID])
 
     def __remove_ldisk(self, ldisk):
-        (status, response_map) = self.server.send_request(
-            HttpMethod.DELETE.value, URI_DEL_LDISK.format(ldisk, self.storage_ip))
-        if status == HttpCode.OK.value:
+        result, message = self.server.send_sync_request(HttpMethod.DELETE.value, URI_DEL_LDISK.format(
+            ldisk, self.storage_ip), {}, HttpCode.OK.value, MSG_DELETING_LDISK)
+        if result:
             print('Delete LDISK {} successfully'.format(ldisk))
             return True
         else:
-            if response_map[SMF_KEY_ERROR_DESCRIPTION] == MSG_DEL_LDISK_TIERING_ENABLE:
+            if message == MSG_DEL_LDISK_TIERING_ENABLE:
                 # ldisk enable tiering
                 ldisks_enable_tier = list(self.get_all_ldisk_enable_tier())
                 for i in ldisks_enable_tier:
                     self.set_tiering_of_ldisk(i, False)
                 self.__remove_ldisk(ldisk)
-            elif response_map[SMF_KEY_ERROR_DESCRIPTION] == MSG_DEL_LDISK_HAS_SNAPSHOT \
-                    or response_map[SMF_KEY_ERROR_DESCRIPTION] == MSG_DEL_SNAPSHOT_LDISK:
-                base_ldisk = self.__get_base_ldisk(ldisk)
-                if base_ldisk != ldisk:
-                    self.__change_current_ldisk(base_ldisk, 'change')
+            elif 'Sense key' in message:
+                time.sleep(10)
+                self.__remove_ldisk(ldisk)
+            elif message == MSG_MIRROR_SET_EXIST:
+                self.__remove_mirror(ldisk)
+                self.__remove_ldisk(ldisk)
             else:
                 logger.info('Delete LDISK {} failed. Error message: {}'.format(
-                    ldisk, response_map[SMF_KEY_ERROR_DESCRIPTION]))
+                    ldisk, message))
                 print('Delete LDISK {} failed. Error message: {}'.format(
-                    ldisk, response_map[SMF_KEY_ERROR_DESCRIPTION]))
+                    ldisk, message))
                 return False
 
     def set_tiering_of_ldisk(self, ldisk, state):
@@ -81,31 +90,30 @@ class Ldisk(StorageAttribute):
             return False
 
     def get_all_ldisk_enable_tier(self):
-        (status, response_map) = self.server.send_request(
+        (_, response_map) = self.server.send_request(
             HttpMethod.GET.value, URI_GET_TIERING.format(self.storage_ip))
-        if status == HttpCode.OK.value:
-            pool_maps = response_map[SMF_KEY_POOL_LIST]
-            for pool_map in pool_maps:
-                tier_maps = pool_map[SMF_KEY_TIER_LIST]
-                for tier_map in tier_maps:
-                    if tier_map[SMF_KEY_TIERING_FUNCTION] == 'enable':
-                        yield int(tier_map[SMF_KEY_VOLUME_I_D])
-        else:
-            logger.info('Get all cache failed. Error message: {}'.format(
-                response_map[SMF_KEY_ERROR_DESCRIPTION]))
-            return False
+        pool_maps = response_map[SMF_KEY_POOL_LIST]
+        for pool_map in pool_maps:
+            tier_maps = pool_map[SMF_KEY_TIER_LIST]
+            for tier_map in tier_maps:
+                if tier_map[SMF_KEY_TIERING_FUNCTION] == 'enable':
+                    yield int(tier_map[SMF_KEY_VOLUME_I_D])
 
-    def __get_base_ldisk(self, ldisk):
+    def __get_snapshot_ldisks(self):
         (status, response_map) = self.server.send_request(
+            HttpMethod.GET.value, URI_GET_SNAPSHOT.format(self.storage_ip))
+        snapshot_maps = response_map[SMF_KEY_SNAPSHOTS]
+        for snapshot_map in snapshot_maps:
+            synced_map = snapshot_map[SMF_KEY_SYNCED_ELEMENT]
+            yield int(synced_map[SMF_KEY_DEVICE_ID])
+
+    def __get_snapshot_info_of_ldisk(self, ldisk):
+        (_, response_map) = self.server.send_request(
             HttpMethod.GET.value, URI_GET_SNAPSHOT_BY_ID.format(ldisk, self.storage_ip))
-        if status == HttpCode.OK.value:
-            snap_map = response_map[SMF_KEY_SNAPSHOTS][0]
-            base_ldisk_map = snap_map[SMF_KEY_BASE_VOLUME]
-            return int(base_ldisk_map[SMF_KEY_DEVICE_ID])
-        else:
-            logger.info('Get base ldisk failed. Error message: {}'.format(
-                response_map[SMF_KEY_ERROR_DESCRIPTION]))
-            return -1
+        snap_map = response_map[SMF_KEY_SNAPSHOTS][0]
+        base_ldisk_map = snap_map[SMF_KEY_BASE_VOLUME]
+        current_ldisk_map = snap_map[SMF_KEY_CURRENT_VOLUME]
+        return (int(base_ldisk_map[SMF_KEY_DEVICE_ID]), int(current_ldisk_map[SMF_KEY_DEVICE_ID]))
 
     def __change_current_ldisk(self, ldisk, operation):
         param_map = {}
@@ -120,3 +128,62 @@ class Ldisk(StorageAttribute):
             logger.info('Modify snapshot {}. Error message: {}'.format(ldisk,
                                                                        response_map[SMF_KEY_ERROR_DESCRIPTION]))
             return False
+
+    def __remove_snapshot(self, snapshot):
+        base, current = self.__get_snapshot_info_of_ldisk(snapshot)
+        if base != current:
+            self.__change_current_ldisk(base, 'change')
+        result, message = self.server.send_sync_request(HttpMethod.DELETE.value, URI_DEL_SNAPSHOT.format(
+            snapshot, self.storage_ip), {}, HttpCode.OK.value, MSG_DELETING_LDISK)
+        if result:
+            print('Delete snapshot {} successfully'.format(snapshot))
+            return True
+        else:
+            logger.info('Remove snapshot {}. Error message: {}'.format(
+                snapshot, message))
+            print('Remove snapshot {} failed. Error message: {}'.format(
+                snapshot, message))
+            return False
+
+    def __get_mirror_mode_of_ldisk(self, ldisk):
+        _, response_map = self.server.send_request(
+            HttpMethod.GET.value, URI_GET_MIRROR_DETAIL.format(self.storage_ip))
+        mirror_maps = response_map[SMF_KEY_SYNCHRONIZATIONS]
+        for mirror_map in mirror_maps:
+            system_map = mirror_map[SMF_KEY_SYSTEM_ELEMENT]
+            system = int(system_map[SMF_KEY_DEVICE_ID])
+            synced_map = mirror_map[SMF_KEY_SYNCED_ELEMENT]
+            synced = int(synced_map[SMF_KEY_DEVICE_ID])
+            if system == ldisk or synced == ldisk:
+                if mirror_map[SMF_KEY_MODE] == 'normal' or mirror_map[SMF_KEY_MODE] == 'generation management':
+                    return 'local'
+                else:
+                    return 'remote'
+
+    def __split_mirror(self, ldisk, mode):
+        param_map = {
+            SMF_KEY_ACCESS_PATH: self.storage_ip,
+            SMF_KEY_OPERATION: 'split',
+            SMF_KEY_MODE: mode,
+            SMF_KEY_FORCE: 'true'
+        }
+        status, response_map = self.server.send_request(
+            HttpMethod.PUT.value, URI_SPLIT_MIRROR.format(ldisk))
+        if status == HttpCode.ACCEPTED.value:
+            logger.info(
+                'Split mirror set of LDISK {} successfully'.format(ldisk))
+        else:
+            logger.info('Split mirror set of LDISK {} failed. Error message: {}'.format(
+                ldisk, response_map[SMF_KEY_ERROR_DESCRIPTION]))
+
+    def __remove_mirror(self, ldisk):
+        mode = self.__get_mirror_mode_of_ldisk(ldisk)
+        self.__split_mirror(ldisk, mode)
+        status, response_map = self.server.send_request(
+            HttpMethod.DELETE.value, URI_DEL_MIRROR.format(ldisk, self.storage_ip, mode))
+        if status == HttpCode.OK.value:
+            logger.info(
+                'Delete mirror set LDISK {} successfully.'.format(ldisk))
+        else:
+            logger.info('Delete mirror set LDISK {} failed. Error message: {}.'.format(
+                ldisk, response_map[SMF_KEY_ERROR_DESCRIPTION]))

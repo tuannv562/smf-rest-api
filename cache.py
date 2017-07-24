@@ -11,6 +11,10 @@ logging.config.dictConfig(LOG_SETTING)
 
 class Cache(StorageAttribute):
     def __init__(self, server, storage_ip, lower, upper):
+        if not lower:
+            lower = 0
+        if not upper:
+            upper = 127
         super().__init__(server, storage_ip, lower, upper)
 
     def remove(self):

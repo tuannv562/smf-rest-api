@@ -4,6 +4,7 @@ from server import Server
 from storage import Storage
 from cache import Cache
 from ldisk import Ldisk
+from pool import Pool
 
 DEFAULT_SMF_URL = 'localhost'
 DEFAULT_SMF_PORT = 8088
@@ -52,27 +53,31 @@ def get_range_id(args):
     if len(ids) != 2:
         raise ValueError('Invalid range of id')
     try:
-        lower = int(ids[0])
-        upper = int(ids[1])
+        lower = int(ids[0]) if ids[0] != '' else None
+        upper = int(ids[1]) if ids[1] != '' else None
     except:
         raise ValueError('Invalid range of id')
     return (lower, upper)
 
 
 def main():
-    args = setup_command()
-    lower, upper = get_range_id(args)
-    server = Server(args.host, args.port, args.user, args.password)
-    storage_attribute = None
-    if args.raid:
-        pass
-    elif args.pool:
-        pass
-    elif args.cache:
-        storage_attribute = Cache(server, args.ip, lower, upper)
-    else:
-        storage_attribute = Ldisk(server, args.ip, lower, upper)
-    storage_attribute.remove()
+    try:
+        open('smf-rest-api.log', 'w').close()
+        args = setup_command()
+        lower, upper = get_range_id(args)
+        server = Server(args.host, args.port, args.user, args.password)
+        storage_attribute = None
+        if args.raid:
+            pass
+        elif args.pool:
+            storage_attribute = Pool(server, args.ip, lower, upper)
+        elif args.cache:
+            storage_attribute = Cache(server, args.ip, lower, upper)
+        else:
+            storage_attribute = Ldisk(server, args.ip, lower, upper)
+        storage_attribute.remove()
+    except Exception as e:
+        print(str(e))
 
 
 if __name__ == '__main__':
