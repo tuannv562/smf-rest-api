@@ -59,6 +59,7 @@ class Ldisk(StorageAttribute):
                     self.set_tiering_of_ldisk(i, False)
                 self.__remove_ldisk(ldisk)
             elif 'Sense key' in message:
+                print('waitting 10s')
                 time.sleep(10)
                 self.__remove_ldisk(ldisk)
             elif message == MSG_MIRROR_SET_EXIST:

@@ -79,6 +79,7 @@ class Server(object):
                 return (True, '')
             else:
                 if response_map[SMF_KEY_ERROR_DESCRIPTION] == wait_msg:
+                    print('waitting 10s')
                     time.sleep(10)
                     continue
                 else:
