@@ -27,17 +27,28 @@ class Pool(StorageAttribute):
                 ldisk = Ldisk(self.server, self.storage_ip,
                               min(value), max(value))
                 ldisk.remove()
+            self.__remove_pool(key)
 
     def __get_all_ldisk_of_pools(self):
         _, response_map = self.server.send_request(
-            HttpMethod.GET.value, URI_GET_ALL_VOLUME_DETAIL.format(self.storage_ip))
-        volume_maps = response_map[SMF_KEY_VOLUMES]
-        pool_map = {}
-        for volume_map in volume_maps:
-            pool = int(volume_map[SMF_KEY_POOL_ID])
-            if pool in pool_map:
-                volumes = pool_map[pool]
+            HttpMethod.GET.value, URI_GET_POOL_DETAIL.format(self.storage_ip))
+        pool_ldisks_map = {}
+        pool_maps = response_map[SMF_KEY_POOLS]
+        for pool_map in pool_maps:
+            volume_maps = pool_map[SMF_KEY_STORAGE_VOLUMES]
+            volumes = []
+            for volume_map in volume_maps:
                 volumes.append(int(volume_map[SMF_KEY_DEVICE_ID]))
-            else:
-                pool_map[pool] = [int(volume_map[SMF_KEY_DEVICE_ID])]
-        return pool_map
+            pool_ldisks_map[int(pool_map[SMF_KEY_POOL_ID])] = volumes
+        return pool_ldisks_map
+
+    def __remove_pool(self, pool):
+        result, message = self.server.send_sync_request(HttpMethod.DELETE.value, URI_DEL_POOL.format(
+            pool, self.storage_ip), {}, HttpCode.OK.value, MSG_DELETING_POOL)
+        if result:
+            logger.info('Delete pool {} successfully'.format(pool))
+            print('Delete pool {} successfully'.format(pool))
+        else:
+            logger.info('Delete pool {} failed. Error message: {}'.format(
+                pool, response_map[SMF_KEY_ERROR_DESCRIPTION]))
+            print('Delete pool {} failed'.format(pool))

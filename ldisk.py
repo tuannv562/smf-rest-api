@@ -32,7 +32,7 @@ class Ldisk(StorageAttribute):
         snapshots = list(self.__get_snapshot_ldisks())
         print('Snapshot LDISK {}'.format(snapshots))
         for i in snapshots:
-            if i >= self. lower and i <= self.upper:
+            if i >= self.lower and i <= self.upper:
                 self.__remove_snapshot(i)
                 ldisks.remove(i)
         for i in ldisks:
@@ -57,6 +57,11 @@ class Ldisk(StorageAttribute):
                 ldisks_enable_tier = list(self.get_all_ldisk_enable_tier())
                 for i in ldisks_enable_tier:
                     self.set_tiering_of_ldisk(i, False)
+                self.__remove_ldisk(ldisk)
+            elif message == MSG_DEL_LDISK_HAS_SNAPSHOT:
+                snapshots = list(self.__get_all_snapshot_of_ldisk(ldisk))
+                for snapshot in snapshots:
+                    self.__remove_snapshot(snapshot)
                 self.__remove_ldisk(ldisk)
             elif 'Sense key' in message:
                 print('waitting 10s')
@@ -116,10 +121,11 @@ class Ldisk(StorageAttribute):
         current_ldisk_map = snap_map[SMF_KEY_CURRENT_VOLUME]
         return (int(base_ldisk_map[SMF_KEY_DEVICE_ID]), int(current_ldisk_map[SMF_KEY_DEVICE_ID]))
 
-    def __change_current_ldisk(self, ldisk, operation):
-        param_map = {}
-        param_map[SMF_KEY_ACCESS_PATH] = self.storage_ip
-        param_map[SMF_KEY_OPERATION] = operation
+    def __modify_snapshot(self, ldisk, operation):
+        param_map = {
+            SMF_KEY_ACCESS_PATH: self.storage_ip,
+            SMF_KEY_OPERATION: operation
+        }
         (status, response_map) = self.server.send_request(
             HttpMethod.PUT.value, URI_MOD_SNAPSHOT.format(ldisk), param_map)
         if status == HttpCode.ACCEPTED.value:
@@ -130,10 +136,20 @@ class Ldisk(StorageAttribute):
                                                                        response_map[SMF_KEY_ERROR_DESCRIPTION]))
             return False
 
+    def __get_all_snapshot_of_ldisk(self, ldisk):
+        _, response_map = self.server.send_request(
+            HttpMethod.GET.value, URI_GET_SNAPSHOT.format(self.storage_ip))
+        snapshot_maps = response_map[SMF_KEY_SNAPSHOTS]
+        for snapshot_map in snapshot_maps:
+            base_map = snapshot_map[SMF_KEY_BASE_VOLUME]
+            if int(base_map[SMF_KEY_DEVICE_ID]) == ldisk:
+                synced_map = snapshot_map[SMF_KEY_SYNCED_ELEMENT]
+                yield int(synced_map[SMF_KEY_DEVICE_ID])
+
     def __remove_snapshot(self, snapshot):
         base, current = self.__get_snapshot_info_of_ldisk(snapshot)
         if base != current:
-            self.__change_current_ldisk(base, 'change')
+            self.__modify_snapshot(base, 'change')
         result, message = self.server.send_sync_request(HttpMethod.DELETE.value, URI_DEL_SNAPSHOT.format(
             snapshot, self.storage_ip), {}, HttpCode.OK.value, MSG_DELETING_LDISK)
         if result:
