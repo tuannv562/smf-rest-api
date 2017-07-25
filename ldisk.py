@@ -67,7 +67,7 @@ class Ldisk(StorageAttribute):
                 print('waitting 10s')
                 time.sleep(10)
                 self.__remove_ldisk(ldisk)
-            elif message == MSG_MIRROR_SET_EXIST:
+            elif message == MSG_MIRROR_SET_EXIST or message == MSG_REMOTE_MIRROR_SET_EXIST:
                 self.__remove_mirror(ldisk)
                 self.__remove_ldisk(ldisk)
             else:
@@ -172,7 +172,7 @@ class Ldisk(StorageAttribute):
             synced_map = mirror_map[SMF_KEY_SYNCED_ELEMENT]
             synced = int(synced_map[SMF_KEY_DEVICE_ID])
             if system == ldisk or synced == ldisk:
-                if mirror_map[SMF_KEY_MODE] == 'normal' or mirror_map[SMF_KEY_MODE] == 'generation management':
+                if SMF_KEY_MODE in mirror_map:
                     return 'local'
                 else:
                     return 'remote'

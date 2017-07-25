@@ -24,10 +24,11 @@ class Pool(StorageAttribute):
         print('Pool info: {}'.format(pool_map))
         for key, value in pool_map.items():
             if key >= self.lower and key <= self.upper:
-                ldisk = Ldisk(self.server, self.storage_ip,
-                              min(value), max(value))
-                ldisk.remove()
-            self.__remove_pool(key)
+                if len(value) > 0:
+                    ldisk = Ldisk(self.server, self.storage_ip,
+                                min(value), max(value))
+                    ldisk.remove()
+                self.__remove_pool(key)
 
     def __get_all_ldisk_of_pools(self):
         _, response_map = self.server.send_request(
@@ -39,6 +40,7 @@ class Pool(StorageAttribute):
             volumes = []
             for volume_map in volume_maps:
                 volumes.append(int(volume_map[SMF_KEY_DEVICE_ID]))
+            print(volumes)
             pool_ldisks_map[int(pool_map[SMF_KEY_POOL_ID])] = volumes
         return pool_ldisks_map
 
